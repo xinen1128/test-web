@@ -1,0 +1,289 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>货物提醒日历</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #495057;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+        .calendar {
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .month-year {
+            font-size: 1.5em;
+            color: #495057;
+        }
+        button {
+            background-color: #e9ecef;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #495057;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #dee2e6;
+        }
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .weekday {
+            text-align: center;
+            font-weight: bold;
+            color: #6c757d;
+            padding: 10px;
+        }
+        .days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        .day {
+            height: 60px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+        .day:hover {
+            background-color: #e9ecef;
+        }
+        .day.today {
+            background-color: #d1ecf1;
+        }
+        .day.has-reminder {
+            background-color: #d4edda;
+        }
+        .day-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .reminder {
+            font-size: 0.8em;
+            color: #495057;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: 100%;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+        .modal-content h2 {
+            margin-top: 0;
+            color: #495057;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <h1>货物提醒日历</h1>
+    <div class="calendar">
+        <div class="header">
+            <button id="prevMonth">&lt;</button>
+            <div class="month-year" id="monthYear"></div>
+            <button id="nextMonth">&gt;</button>
+        </div>
+        <div class="weekdays">
+            <div class="weekday">日</div>
+            <div class="weekday">一</div>
+            <div class="weekday">二</div>
+            <div class="weekday">三</div>
+            <div class="weekday">四</div>
+            <div class="weekday">五</div>
+            <div class="weekday">六</div>
+        </div>
+        <div class="days" id="days"></div>
+    </div>
+    <div class="modal" id="reminderModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">添加提醒</h2>
+            <input type="text" id="reminderInput" placeholder="货物名称" />
+            <textarea id="reminderDetails" placeholder="详细信息（如数量、地点等）" rows="3"></textarea>
+            <div class="modal-buttons">
+                <button id="saveReminder">保存</button>
+                <button id="deleteReminder" style="background-color: #f8d7da; color: #721c24;">删除</button>
+                <button id="closeModal">关闭</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const monthYear = document.getElementById('monthYear');
+        const daysContainer = document.getElementById('days');
+        const prevMonthBtn = document.getElementById('prevMonth');
+        const nextMonthBtn = document.getElementById('nextMonth');
+        const reminderModal = document.getElementById('reminderModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const reminderInput = document.getElementById('reminderInput');
+        const reminderDetails = document.getElementById('reminderDetails');
+        const saveReminderBtn = document.getElementById('saveReminder');
+        const deleteReminderBtn = document.getElementById('deleteReminder');
+        const closeModalBtn = document.getElementById('closeModal');
+
+        let currentDate = new Date();
+        let selectedDate = null;
+        let reminders = JSON.parse(localStorage.getItem('reminders')) || {};
+
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const firstDay = new Date(year, month, 1).getDay();
+            const lastDay = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+
+            monthYear.textContent = `${year}年 ${month + 1}月`;
+
+            daysContainer.innerHTML = '';
+
+            // 填充前面的空白
+            for (let i = 0; i < firstDay; i++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'day';
+                daysContainer.appendChild(emptyDay);
+            }
+
+            // 填充日期
+            for (let day = 1; day <= lastDay; day++) {
+                const dayElement = document.createElement('div');
+                dayElement.className = 'day';
+                dayElement.innerHTML = `<div class="day-number">${day}</div>`;
+
+                const dateKey = `${year}-${month + 1}-${day}`;
+                if (reminders[dateKey]) {
+                    dayElement.classList.add('has-reminder');
+                    const reminderDiv = document.createElement('div');
+                    reminderDiv.className = 'reminder';
+                    reminderDiv.textContent = reminders[dateKey].title;
+                    dayElement.appendChild(reminderDiv);
+                }
+
+                if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+                    dayElement.classList.add('today');
+                }
+
+                dayElement.addEventListener('click', () => openModal(dateKey, day));
+                daysContainer.appendChild(dayElement);
+            }
+        }
+
+        function openModal(dateKey, day) {
+            selectedDate = dateKey;
+            modalTitle.textContent = `${dateKey} 的提醒`;
+            if (reminders[dateKey]) {
+                reminderInput.value = reminders[dateKey].title;
+                reminderDetails.value = reminders[dateKey].details;
+                deleteReminderBtn.style.display = 'inline-block';
+            } else {
+                reminderInput.value = '';
+                reminderDetails.value = '';
+                deleteReminderBtn.style.display = 'none';
+            }
+            reminderModal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            reminderModal.style.display = 'none';
+            selectedDate = null;
+        }
+
+        function saveReminder() {
+            if (selectedDate) {
+                reminders[selectedDate] = {
+                    title: reminderInput.value,
+                    details: reminderDetails.value
+                };
+                localStorage.setItem('reminders', JSON.stringify(reminders));
+                renderCalendar();
+                closeModal();
+            }
+        }
+
+        function deleteReminder() {
+            if (selectedDate && reminders[selectedDate]) {
+                delete reminders[selectedDate];
+                localStorage.setItem('reminders', JSON.stringify(reminders));
+                renderCalendar();
+                closeModal();
+            }
+        }
+
+        prevMonthBtn.addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        });
+
+        nextMonthBtn.addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        });
+
+        saveReminderBtn.addEventListener('click', saveReminder);
+        deleteReminderBtn.addEventListener('click', deleteReminder);
+        closeModalBtn.addEventListener('click', closeModal);
+
+        renderCalendar();
+    </script>
+</body>
+</html>
